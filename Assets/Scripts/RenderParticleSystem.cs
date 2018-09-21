@@ -17,6 +17,10 @@ public class RenderParticleSystem : EditorWindow
 
     static Color backColor;
 
+    static bool color2A = true;
+
+    static Color toA;
+
     Camera rendcam;
 
     [MenuItem("Window/Rendering/Render Particle System")]
@@ -26,6 +30,7 @@ public class RenderParticleSystem : EditorWindow
         assetsFolder = Application.dataPath;
         rendering = false;
         backColor = Color.white;
+        toA = Color.white;
     }
 
     void OnGUI()
@@ -53,6 +58,13 @@ public class RenderParticleSystem : EditorWindow
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label("Output Folder:");
         outputFolder = EditorGUILayout.TextField(outputFolder);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("Color 2 Alpha:");
+        color2A = GUILayout.Toggle(color2A, "");
+        if (color2A)
+            toA = EditorGUILayout.ColorField(toA);
         EditorGUILayout.EndHorizontal();
 
         if (GUILayout.Button("Render") && ps && !string.IsNullOrEmpty(outputFolder) && renderTexture)
@@ -125,19 +137,100 @@ public class RenderParticleSystem : EditorWindow
             RenderTexture.active = renderTexture;
             Texture2D tex = new Texture2D(renderTexture.width, renderTexture.height);
             tex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
+            if(color2A)
+            {
+                for (int i = 0; i < tex.width; i++)
+                {
+                    for (int j = 0; j < tex.height; j++)
+                    {
+                        Color c = tex.GetPixel(i, j);
+                        if (c == toA)   //bad way
+                        {
+                            c.a = 0f;
+                            tex.SetPixel(i, j, c);
+                        }
+                    }
+                }
+            }
             var bytes = tex.EncodeToPNG();
             File.WriteAllBytes(assetsFolder + "/" + outputFolder + "/img" + im + ".png", bytes);
             im++;
             RenderTexture.active = null;
+            t += Time.deltaTime;
             if (t > p.main.duration)
             {
                 rendering = false;
                 EndRendering();
             }
-            t += Time.deltaTime;
             DestroyImmediate(tex);
         }
 
     }
+
+
+    /* how color 2 alpha should work
+                        static inline void
+color_to_alpha (GimpRGB       *src,
+                const GimpRGB *color)
+{
+  GimpRGB alpha;
+
+  alpha.a = src->a;
+
+  if (color->r < 0.0001)
+    alpha.r = src->r;
+  else if (src->r > color->r)
+    alpha.r = (src->r - color->r) / (1.0 - color->r);
+  else if (src->r < color->r)
+    alpha.r = (color->r - src->r) / color->r;
+  else alpha.r = 0.0;
+
+  if (color->g < 0.0001)
+    alpha.g = src->g;
+  else if (src->g > color->g)
+    alpha.g = (src->g - color->g) / (1.0 - color->g);
+  else if (src->g < color->g)
+    alpha.g = (color->g - src->g) / (color->g);
+  else alpha.g = 0.0;
+
+  if (color->b < 0.0001)
+    alpha.b = src->b;
+  else if (src->b > color->b)
+    alpha.b = (src->b - color->b) / (1.0 - color->b);
+  else if (src->b < color->b)
+    alpha.b = (color->b - src->b) / (color->b);
+  else alpha.b = 0.0;
+
+  if (alpha.r > alpha.g)
+    {
+      if (alpha.r > alpha.b)
+        {
+          src->a = alpha.r;
+        }
+      else
+        {
+          src->a = alpha.b;
+        }
+    }
+  else if (alpha.g > alpha.b)
+    {
+      src->a = alpha.g;
+    }
+  else
+    {
+      src->a = alpha.b;
+    }
+
+  if (src->a < 0.0001)
+    return;
+
+  src->r = (src->r - color->r) / src->a + color->r;
+  src->g = (src->g - color->g) / src->a + color->g;
+  src->b = (src->b - color->b) / src->a + color->b;
+
+  src->a *= alpha.a;
+} 
+                        */
+
 
 }
