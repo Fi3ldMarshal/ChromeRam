@@ -101,7 +101,7 @@ public class RenderParticleSystem : EditorWindow
         t = 0f;
         im = 0;
         
-        //p.Stop();
+        p.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         //p.Play();
 
         /*
@@ -144,11 +144,12 @@ public class RenderParticleSystem : EditorWindow
                     for (int j = 0; j < tex.height; j++)
                     {
                         Color c = tex.GetPixel(i, j);
-                        if (c == toA)   //bad way
+                        tex.SetPixel(i, j, ColorToAlpha(c, toA));
+                        /*if (c == toA)   //bad way
                         {
                             c.a = 0f;
                             tex.SetPixel(i, j, c);
-                        }
+                        }*/
                     }
                 }
             }
@@ -167,70 +168,66 @@ public class RenderParticleSystem : EditorWindow
 
     }
 
-
-    /* how color 2 alpha should work
-                        static inline void
-color_to_alpha (GimpRGB       *src,
-                const GimpRGB *color)
-{
-  GimpRGB alpha;
-
-  alpha.a = src->a;
-
-  if (color->r < 0.0001)
-    alpha.r = src->r;
-  else if (src->r > color->r)
-    alpha.r = (src->r - color->r) / (1.0 - color->r);
-  else if (src->r < color->r)
-    alpha.r = (color->r - src->r) / color->r;
-  else alpha.r = 0.0;
-
-  if (color->g < 0.0001)
-    alpha.g = src->g;
-  else if (src->g > color->g)
-    alpha.g = (src->g - color->g) / (1.0 - color->g);
-  else if (src->g < color->g)
-    alpha.g = (color->g - src->g) / (color->g);
-  else alpha.g = 0.0;
-
-  if (color->b < 0.0001)
-    alpha.b = src->b;
-  else if (src->b > color->b)
-    alpha.b = (src->b - color->b) / (1.0 - color->b);
-  else if (src->b < color->b)
-    alpha.b = (color->b - src->b) / (color->b);
-  else alpha.b = 0.0;
-
-  if (alpha.r > alpha.g)
+    //idea taken form GIMP source code
+    static Color ColorToAlpha(Color src, Color c)
     {
-      if (alpha.r > alpha.b)
+        Color alpha;
+
+        alpha.a = src.a;
+
+        if (c.r < 0.0001f)
+            alpha.r = src.r;
+        else if (src.r > c.r)
+            alpha.r = (src.r - c.r) / (1.0f - c.r);
+        else if (src.r < c.r)
+            alpha.r = (c.r - src.r) / c.r;
+        else alpha.r = 0f;
+
+        if (c.g < 0.0001f)
+            alpha.g = src.g;
+        else if (src.g > c.g)
+            alpha.g = (src.g - c.g) / (1.0f - c.g);
+        else if (src.g < c.g)
+            alpha.g = (c.g - src.g) / c.g;
+        else alpha.g = 0f;
+
+        if (c.b < 0.0001f)
+            alpha.b = src.b;
+        else if (src.b > c.b)
+            alpha.b = (src.b - c.b) / (1.0f - c.b);
+        else if (src.b < c.b)
+            alpha.b = (c.b - src.b) / c.b;
+        else alpha.b = 0f;
+
+        if(alpha.r > alpha.g)
         {
-          src->a = alpha.r;
+            if(alpha.r > alpha.b)
+            {
+                src.a = alpha.r;
+            }
+            else
+            {
+                src.a = alpha.b;
+            }
         }
-      else
+        else if(alpha.g > alpha.b)
         {
-          src->a = alpha.b;
+            src.a = alpha.g;
+        } else
+        {
+            src.a = alpha.b;
         }
+
+        if (src.a < 0.0001f)
+            return src;
+
+        src.r = (src.r - c.r) / src.a + c.r;
+        src.g = (src.g - c.g) / src.a + c.g;
+        src.b = (src.b - c.b) / src.a + c.b;
+
+        src.a *= alpha.a;
+
+        return src;
     }
-  else if (alpha.g > alpha.b)
-    {
-      src->a = alpha.g;
-    }
-  else
-    {
-      src->a = alpha.b;
-    }
-
-  if (src->a < 0.0001)
-    return;
-
-  src->r = (src->r - color->r) / src->a + color->r;
-  src->g = (src->g - color->g) / src->a + color->g;
-  src->b = (src->b - color->b) / src->a + color->b;
-
-  src->a *= alpha.a;
-} 
-                        */
-
 
 }
