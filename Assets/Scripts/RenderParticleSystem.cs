@@ -7,7 +7,7 @@ using System.IO;
 public class RenderParticleSystem : EditorWindow
 {
 
-    static GameObject ps;
+    static ParticleSystem p;
 
     static RenderTexture renderTexture;
 
@@ -21,6 +21,20 @@ public class RenderParticleSystem : EditorWindow
 
     static Color toA;
 
+    static bool useRenderedMesage = false;
+
+    static float cameraOrthoSize = 4f;
+
+    static int FPS = 30;
+
+    public enum OutputType
+    {
+        SeparateImages,
+        Combine
+    }
+
+    static OutputType outType = OutputType.SeparateImages;
+
     Camera rendcam;
 
     [MenuItem("Window/Rendering/Render Particle System")]
@@ -28,7 +42,6 @@ public class RenderParticleSystem : EditorWindow
     {
         EditorWindow.GetWindow(typeof(RenderParticleSystem));
         assetsFolder = Application.dataPath;
-        rendering = false;
         backColor = Color.white;
         toA = Color.white;
     }
@@ -37,12 +50,7 @@ public class RenderParticleSystem : EditorWindow
     {
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label("Particle system:");
-        ps = (GameObject)EditorGUILayout.ObjectField(ps, typeof(GameObject), true);
-        if (ps != null && !ps.GetComponent<ParticleSystem>())
-        {
-            ps = null;
-            Debug.LogWarning("Given object doesn't have ParticleSystem component");
-        }
+        p = (ParticleSystem)EditorGUILayout.ObjectField(p, typeof(ParticleSystem), true);
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.BeginHorizontal();
@@ -51,8 +59,25 @@ public class RenderParticleSystem : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("FPS:");
+        FPS = EditorGUILayout.IntField(FPS);
+        if (FPS < 1)
+            FPS = 30;
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
         GUILayout.Label("Background Color:");
         backColor = EditorGUILayout.ColorField(backColor);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("Camera Orthographic Size:");
+        cameraOrthoSize = EditorGUILayout.FloatField(cameraOrthoSize);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("Output Type:");
+        outType = (OutputType)EditorGUILayout.EnumPopup("", outType);
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.BeginHorizontal();
@@ -67,12 +92,16 @@ public class RenderParticleSystem : EditorWindow
             toA = EditorGUILayout.ColorField(toA);
         EditorGUILayout.EndHorizontal();
 
-        if (GUILayout.Button("Render") && ps && !string.IsNullOrEmpty(outputFolder) && renderTexture)
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("Send message when done:");
+        useRenderedMesage = GUILayout.Toggle(useRenderedMesage, "");
+        EditorGUILayout.EndHorizontal();
+
+        if (GUILayout.Button("Render") && p && !string.IsNullOrEmpty(outputFolder) && renderTexture)
             RenderPS();
     }
 
-    ParticleSystem p;
-    static bool rendering = false;
+    //static bool rendering = false;
     int oldLayer;
     Transform oldParent;
 
@@ -83,60 +112,127 @@ public class RenderParticleSystem : EditorWindow
             Directory.CreateDirectory(assetsFolder + "/" + outputFolder);
         int lm = 512;
         //Debug.Log(lm);
-        oldLayer = ps.layer;
-        oldParent = ps.transform.parent;
-        ps.transform.parent = null;
-        p = ps.GetComponent<ParticleSystem>();
+        oldLayer = p.gameObject.layer;
+        oldParent = p.transform.parent;
+        p.transform.parent = null;
         rendcam = new GameObject().AddComponent<Camera>();
         //Debug.Log(rendcam);
         rendcam.cullingMask = lm;
+        rendcam.orthographicSize = cameraOrthoSize;
         rendcam.orthographic = true;
-        rendcam.transform.position = (Vector3)((Vector2)ps.transform.position) - Vector3.forward;
+        rendcam.transform.position = (Vector3)((Vector2)p.transform.position) - Vector3.forward;
         rendcam.backgroundColor = backColor;
         rendcam.targetTexture = renderTexture;
-        ps.layer = LayerMask.NameToLayer("RenderPS");
-        Selection.activeGameObject = ps;
+        p.gameObject.layer = LayerMask.NameToLayer("RenderPS");
+        //Selection.activeGameObject = ps;
 
-        rendering = true;
-        t = 0f;
-        im = 0;
+        //rendering = true;
+        int im = 0;
         
         p.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        //p.Play();
+        //p.Simulate(0.00001f, true, true, false);
 
-        /*
-        RenderTexture.active = renderTexture;
-        Texture2D tex = new Texture2D(renderTexture.width, renderTexture.height);
-        tex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
-        var bytes = tex.EncodeToPNG();
-        File.WriteAllBytes(assetsFolder + "/img.png", bytes);*/
+        int n = (int)(FPS * p.main.duration);
+        if (n < 1) n = 1;
+
+        Texture2D texc = null;
+
+        if (outType == OutputType.Combine)
+        {
+            int s = (int)Mathf.Sqrt(n);
+            if (s != Mathf.Sqrt(n) || s == 0)
+                s++;
+            texc = new Texture2D(s * renderTexture.width, s * renderTexture.height, TextureFormat.ARGB32, false);
+        }
+
+        for (int k = 0; k <= n; k++)
+        {
+
+            //Debug.Log("k: " + k + " t: " + (((float)k / n) * p.main.duration));
+
+            p.Simulate(((float)k / n) * p.main.duration, true, true, false);
+
+            rendcam.Render();
+            RenderTexture.active = renderTexture;
+            Texture2D tex = new Texture2D(renderTexture.width, renderTexture.height);
+            tex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0, false);
+            if (color2A)
+            {
+                for (int i = 0; i < tex.width; i++)
+                {
+                    for (int j = 0; j < tex.height; j++)
+                    {
+                        Color c = tex.GetPixel(i, j);
+                        tex.SetPixel(i, j, ColorToAlpha(c, toA));
+                    }
+                }
+            }
+            //output -> tex
+            switch (outType)
+            {
+                case OutputType.SeparateImages:
+                    var bytes = tex.EncodeToPNG();
+                    File.WriteAllBytes(assetsFolder + "/" + outputFolder + "/img" + im + ".png", bytes);
+                    im++;
+                    break;
+                case OutputType.Combine:
+                    AddInTex(texc, tex, k);
+                    if(k + 1 > n)
+                        File.WriteAllBytes(assetsFolder + "/" + outputFolder + "/img.png", texc.EncodeToPNG());
+                    break;
+            }
+            RenderTexture.active = null;
+
+        }
+
+        EndRendering();
 
     }
 
     void EndRendering()
     {
         RenderTexture.active = null;
-        ps.layer = oldLayer;
-        ps.transform.parent = oldParent;
+        p.gameObject.layer = oldLayer;
+        p.transform.parent = oldParent;
         DestroyImmediate(rendcam.gameObject);
-        Debug.Log("Rendered");
+        if (useRenderedMesage)
+            Debug.Log("Rendered");
         AssetDatabase.Refresh(ImportAssetOptions.ImportRecursive);
+        System.GC.Collect();
     }
 
-    float t = 0f;
-    int im = 0;
+    void AddInTex(Texture2D src, Texture2D plus, int pos)
+    {
+        if (plus.width > src.width || plus.height > src.height)
+            throw new System.Exception("Plus texutre cannot be larger than added one");
+        if (pos < 0)
+            throw new System.Exception("Position cannot be negative");
+        int s = pos % (src.width / plus.height),
+            r = (pos * plus.width) / src.width;
+        Debug.Log("Pos: " + pos + " (s,r): " + new Vector2(s, r));
+        for (int i = 0; i < plus.width; i++)
+        {
+            for (int j = 0;j < plus.height; j++)
+            {
+                src.SetPixel(i + s * plus.width, src.height - (j + r * plus.height), plus.GetPixel(i, j));
+            }
+        }
 
-    void Update()
+    }
+
+    /*void Update()
     {
         if (rendering)
         {
             if (!p.isPlaying)
-                p.Play();
+            {
+                p.Play(true);
+            }
             //print("Rendering");
             rendcam.Render();
             RenderTexture.active = renderTexture;
-            Texture2D tex = new Texture2D(renderTexture.width, renderTexture.height);
-            tex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
+            Texture2D tex = new Texture2D(2, 2);
+            tex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0, false);
             if(color2A)
             {
                 for (int i = 0; i < tex.width; i++)
@@ -145,11 +241,11 @@ public class RenderParticleSystem : EditorWindow
                     {
                         Color c = tex.GetPixel(i, j);
                         tex.SetPixel(i, j, ColorToAlpha(c, toA));
-                        /*if (c == toA)   //bad way
-                        {
-                            c.a = 0f;
-                            tex.SetPixel(i, j, c);
-                        }*/
+                        //if (c == toA)   //bad way
+                        //{
+                        //    c.a = 0f;
+                        //    tex.SetPixel(i, j, c);
+                        //}
                     }
                 }
             }
@@ -166,7 +262,7 @@ public class RenderParticleSystem : EditorWindow
             DestroyImmediate(tex);
         }
 
-    }
+    }*/
 
     //idea taken form GIMP source code
     static Color ColorToAlpha(Color src, Color c)
