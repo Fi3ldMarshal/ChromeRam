@@ -209,12 +209,12 @@ public class RenderParticleSystem : EditorWindow
             throw new System.Exception("Position cannot be negative");
         int s = pos % (src.width / plus.height),
             r = (pos * plus.width) / src.width;
-        Debug.Log("Pos: " + pos + " (s,r): " + new Vector2(s, r));
+        //Debug.Log("Pos: " + pos + " (s,r): " + new Vector2(s, r));
         for (int i = 0; i < plus.width; i++)
         {
             for (int j = 0;j < plus.height; j++)
             {
-                src.SetPixel(i + s * plus.width, src.height - (j + r * plus.height), plus.GetPixel(i, j));
+                src.SetPixel(i + s * plus.width, src.height - (j + r * plus.height), plus.GetPixel(i, plus.height - j));
             }
         }
 
