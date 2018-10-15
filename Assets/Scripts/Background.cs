@@ -13,6 +13,11 @@ public class Background : MonoBehaviour {
         dist = (transform.localScale.x)/* * 2f*/;
     }
 
+    public void Reset()
+    {
+        dist = (transform.localScale.x);
+    }
+
     float modf(float a, float b)
     {
         return b * (a / b - Mathf.Floor(a / b));
